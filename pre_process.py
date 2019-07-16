@@ -12,28 +12,66 @@ def create_grid(side_length: float, delta_x: float, delta_y: float):
     """
     row = delta_y / side_length
     col = delta_x / side_length
-    grid_str = str(row) + '_' + str(col)
+    grid_str = str(int(row)) + '_' + str(int(col))
     return grid_str
 
 
-def gen_grid_center(x_arr: np.ndarray, y_arr: np.ndarray, t_arr: np.ndarray):
+def gen_grid_center(x_arr: list, y_arr: list, t_arr: list):
     """
     获取网格中心点
     :return:
     """
-    c_x = np.mean(x_arr, axis=1)
-    c_y = np.mean(y_arr, axis=1)
-    c_t = np.mean(t_arr, axis=1)
+    c_x = np.median(x_arr)
+    c_y = np.median(y_arr)
+    c_t = np.median(t_arr)
     return c_x, c_y, c_t
 
 
 if __name__ == '__main__':
+    # df = pd.read_csv('data/10_grid.csv')
     df = pd.read_csv('data/10.csv')
-    delta_x = df['x'].max - df['x'].min
-    delta_y = df['y'].max - df['y'].min
-    df['grid'] = df[['x', 'y']].apply(lambda xy: create_grid(200, delta_x, delta_y))
+    delta_x = df['x'].max() - df['x'].min()
+    delta_y = df['y'].max() - df['y'].min()
+    df['grid'] = df[['x', 'y']].apply(lambda xy: create_grid(100, xy[0], xy[1]), axis=1)
     df.to_csv('data/10_grid.csv', index=None)
-
-    for group in df.groupby('grid'):
-        # 网格划分， 降采样
-        cx, cy, ct = gen_grid_center(group[1]['x'].values, group[1]['y'].values, group[1]['time'].values)
+    new_id = []
+    new_x = []
+    new_y = []
+    new_t = []
+    for g in df.groupby('id'):
+        gs = g[1].sort_values('timestamp')
+        x_arr = []
+        y_arr = []
+        t_arr = []
+        last_grid = ''
+        count = 0
+        for i in range(0, len(gs['x'])):
+            cur_grid = gs['grid'].values[i]
+            if cur_grid == last_grid:
+                count += 1
+                if count > 1:
+                    x_arr.append(gs['x'].values[i])
+                    y_arr.append(gs['y'].values[i])
+                    t_arr.append(gs['timestamp'].values[i])
+            else:
+                count = 0
+                last_grid = cur_grid
+                x, y, t = gen_grid_center(x_arr, y_arr, t_arr)
+                new_id.append(g[0])
+                new_x.append(x)
+                new_y.append(y)
+                new_t.append(t)
+                x_arr = []
+                y_arr = []
+                t_arr = []
+        x, y, t = gen_grid_center(x_arr, y_arr, t_arr)
+        new_id.append(g[0])
+        new_x.append(x)
+        new_y.append(y)
+        new_t.append(t)
+    new_df = pd.DataFrame()
+    new_df['id'] = new_id
+    new_df['x'] = new_x
+    new_df['y'] = new_y
+    new_df['timestamp'] = new_t
+    new_df.to_csv('data/new_10.csv', index=None)
